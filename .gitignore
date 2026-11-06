@@ -1,0 +1,26 @@
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+.Spotlight-V100
+.Trashes
+
+# Xcode / Swift Package Manager
+.build/
+*.xcodeproj
+*.xcworkspace
+*.xcuserdata
+*.xcuserstate
+DerivedData/
+
+# App Bundles and Disk Images
+*.app/
+*.dmg
+*.zip
+*.tar.gz
+
+# Temp assets (keep AppIcon.icns)
+AppIcon.iconset/
+AppIcon_1024.png
+/tmp/
