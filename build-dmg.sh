@@ -4,8 +4,10 @@ set -e
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 cd "$DIR"
 
+SIGN_IDENTITY="${SIGN_IDENTITY:-$1}"
+
 echo "==> Ensuring app is built..."
-./build-app.sh
+./build-app.sh "$SIGN_IDENTITY"
 
 APP_NAME="AI Limiter"
 DMG_NAME="AI-Limiter.dmg"
@@ -28,5 +30,11 @@ hdiutil create \
     "${DMG_NAME}"
 
 rm -rf "$STAGING_DIR"
+
+SIGN_IDENTITY="${SIGN_IDENTITY:-$1}"
+if [ -n "$SIGN_IDENTITY" ]; then
+    echo "==> Signing DMG with identity: ${SIGN_IDENTITY}..."
+    codesign --sign "${SIGN_IDENTITY}" "${DMG_NAME}"
+fi
 
 echo "==> Successfully created ${DMG_NAME} ($(du -sh "${DMG_NAME}" | cut -f1))"

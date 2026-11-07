@@ -60,20 +60,29 @@ AI Limiter is purely an observability utility designed to make developer life ea
 3. Open the disk image and drag **AI Limiter** into your **Applications** folder.
 4. Launch **AI Limiter** from Launchpad or Spotlight.
 
+> [!NOTE]
+> If macOS Gatekeeper displays *"AI Limiter is damaged and can't be opened"*, this occurs because the binary downloaded from the web is not notarized by Apple. You can clear the quarantine attribute by running:
+> ```bash
+> xattr -cr "/Applications/AI Limiter.app"
+> ```
+
 ### Build from Source
 
 Requirements: macOS 13.0+ and Xcode 15+ / Swift 6 toolchain.
 
 ```bash
 # Clone the repository
-git clone https://github.com/letscodetothebeach/ai-limiter.git
-cd ai-limiter
+git clone https://github.com/letscodetothebeach/ai-limit-track.git
+cd ai-limit-track
 
 # Run unit tests
 swift test
 
 # Build the release app bundle (.app)
 ./build-app.sh
+
+# Optional: Build and sign with your Apple Developer identity
+# SIGN_IDENTITY="Developer ID Application: Your Name (TEAM_ID)" ./build-app.sh
 
 # Build a distributable DMG (.dmg)
 ./build-dmg.sh

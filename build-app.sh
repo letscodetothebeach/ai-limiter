@@ -58,4 +58,14 @@ EOF
 
 chmod +x "${MACOS_DIR}/AILimiter"
 touch "${BUNDLE_DIR}"
+
+SIGN_IDENTITY="${SIGN_IDENTITY:-$1}"
+if [ -n "$SIGN_IDENTITY" ]; then
+    echo "==> Signing app bundle with identity: ${SIGN_IDENTITY}..."
+    codesign --force --deep --options runtime --sign "${SIGN_IDENTITY}" "${BUNDLE_DIR}"
+else
+    echo "==> Ad-hoc signing app bundle (use SIGN_IDENTITY='...' to sign with Apple Developer)..."
+    codesign --force --deep --sign - "${BUNDLE_DIR}"
+fi
+
 echo "==> Built successfully: ${BUNDLE_DIR} with AppIcon.icns"
