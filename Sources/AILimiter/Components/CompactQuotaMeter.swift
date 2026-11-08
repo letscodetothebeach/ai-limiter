@@ -25,36 +25,36 @@ public struct CompactQuotaMeter: View {
 
     public var body: some View {
         if let q = quota {
-            VStack(alignment: .leading, spacing: 3) {
+            VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 6) {
                     Text("\(String(format: "%.0f%%", q.utilization))")
-                        .font(.system(size: 12, weight: .bold, design: .rounded))
+                        .font(.system(size: 13, weight: .bold, design: .rounded))
                         .foregroundColor(statusColor)
 
                     if q.resetsAt != nil {
                         Text("• \(q.formattedResetTime)")
-                            .font(.system(size: 10, weight: .medium))
+                            .font(.system(size: 11, weight: .medium))
                             .foregroundColor(.secondary)
                     }
                 }
 
                 // Mini horizontal bar
                 ZStack(alignment: .leading) {
-                    RoundedRectangle(cornerRadius: 3)
+                    RoundedRectangle(cornerRadius: 3.5)
                         .fill(Color.primary.opacity(0.08))
-                        .frame(width: 100, height: 6)
+                        .frame(width: 110, height: 7)
 
-                    RoundedRectangle(cornerRadius: 3)
+                    RoundedRectangle(cornerRadius: 3.5)
                         .fill(statusColor)
-                        .frame(width: max(0, min(100 * CGFloat(q.utilization / 100.0), 100)), height: 6)
+                        .frame(width: max(0, min(110 * CGFloat(q.utilization / 100.0), 110)), height: 7)
                 }
             }
             .help("\(title): \(q.utilizationPercentageString) used (\(q.remainingPercentageString) left)\nResets: \(q.formattedResetTime)")
         } else {
             Text("—")
-                .font(.system(size: 12))
+                .font(.system(size: 13, weight: .semibold))
                 .foregroundColor(.secondary.opacity(0.6))
-                .frame(width: 100, alignment: .leading)
+                .frame(width: 110, alignment: .leading)
         }
     }
 }

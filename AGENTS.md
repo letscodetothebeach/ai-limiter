@@ -10,6 +10,7 @@ This document provides conventions, architecture notes, and verification standar
 2. **Local-First & Zero Telemetry**: All tokens, preferences, and proxy configurations must remain strictly local on the user's machine (`~/Library/Application Support/AILimiter/`). Never add external analytics or remote telemetry.
 3. **High Density**: The UI must maintain a compact, high-density format (~48px per row) allowing 15+ accounts to be visible simultaneously without needless vertical bloat.
 4. **Harness Agnostic**: While initial support is focused on standard OAuth usage limits, the models and services are structured to cleanly accommodate additional AI providers.
+5. **Strict Privacy & Entity Sanitization**: Never commit or share unnecessary corporate entity names (e.g., registered business entity names), personal real names, Apple ID account holder identities, private email addresses, or actual API tokens to git commits, branches, issues, PRs, release tags, or GitHub release notes. Always use generic anonymized placeholders (`developer.one@example.com`, `Acme Corp`, `team@example.com`) in all tests, mock data, documentation, and commit messages.
 
 ---
 

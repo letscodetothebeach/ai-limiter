@@ -58,16 +58,19 @@ public struct AccountCardView: View {
                         }
                     } else {
                         HStack(spacing: 8) {
-                            Text(account.name)
+                            Text(account.cleanDisplayName)
                                 .font(.system(size: 16, weight: .bold))
                                 .foregroundColor(.primary)
 
+                            AccountTypeBadge(type: account.displayAccountType)
+                            AccountPlanBadge(plan: account.displayPlan)
+
                             Button {
-                                editedName = account.name
+                                editedName = account.cleanDisplayName
                                 isEditingName = true
                             } label: {
                                 Image(systemName: "pencil")
-                                    .font(.system(size: 11))
+                                    .font(.system(size: 12))
                                     .foregroundColor(.secondary)
                             }
                             .buttonStyle(.plain)

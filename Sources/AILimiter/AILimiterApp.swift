@@ -21,9 +21,10 @@ struct AILimiterApp: App {
         WindowGroup("AI Limiter") {
             ContentView()
                 .environmentObject(store)
-                .frame(minWidth: 840, minHeight: 520)
+                .frame(minWidth: 940, minHeight: 520)
         }
         .windowStyle(.titleBar)
         .windowToolbarStyle(.unified)
+        .defaultSize(width: 980, height: 600)
     }
 }

@@ -65,8 +65,22 @@ public class AccountStore: ObservableObject {
 
         do {
             let data = try Data(contentsOf: storageUrl)
-            let decoded = try JSONDecoder().decode([Account].self, from: data)
+            var decoded = try JSONDecoder().decode([Account].self, from: data)
+            var needsSave = false
+            for i in 0..<decoded.count {
+                if decoded[i].plan == nil {
+                    decoded[i].plan = decoded[i].displayPlan
+                    needsSave = true
+                }
+                if decoded[i].accountType == nil {
+                    decoded[i].accountType = decoded[i].displayAccountType
+                    needsSave = true
+                }
+            }
             self.accounts = decoded
+            if needsSave {
+                saveAccounts()
+            }
         } catch {
             print("Failed to decode accounts: \(error)")
             self.accounts = []
@@ -89,6 +103,9 @@ public class AccountStore: ObservableObject {
             email: "developer@example.com",
             organizationName: "Personal Pro",
             accountUUID: "acct_uuid_mock_1",
+            plan: "Pro",
+            accountType: "Personal",
+            rateLimitTier: "default_claude_ai",
             accessToken: "mock_token_1",
             proxy: ProxyConfig(isEnabled: false, url: "http://127.0.0.1:7890"),
             isMock: true,
@@ -98,10 +115,13 @@ public class AccountStore: ObservableObject {
         )
 
         let mockTeam = Account(
-            name: "Work Team Account (Proxy Enabled)",
+            name: "Dev Engineering Team",
             email: "team-lead@company.internal",
             organizationName: "Dev Engineering Team",
             accountUUID: "acct_uuid_mock_2",
+            plan: "Team",
+            accountType: "Business",
+            rateLimitTier: "team_tier_1",
             accessToken: "mock_token_2",
             proxy: ProxyConfig(isEnabled: true, url: "http://127.0.0.1:7890"),
             isMock: true,
@@ -110,11 +130,14 @@ public class AccountStore: ObservableObject {
             lastUpdated: Date().addingTimeInterval(-180)
         )
 
-        let mockNearLimit = Account(
-            name: "High Activity Bot",
+        let mockMax = Account(
+            name: "Automated Workflows",
             email: "ci-runner@cloud.net",
             organizationName: "Automated Workflows",
             accountUUID: "acct_uuid_mock_3",
+            plan: "Max (20x)",
+            accountType: "Business",
+            rateLimitTier: "default_claude_max_20x",
             accessToken: "mock_token_3",
             proxy: ProxyConfig(isEnabled: false, url: "socks5://127.0.0.1:1080"),
             isMock: true,
@@ -123,7 +146,39 @@ public class AccountStore: ObservableObject {
             lastUpdated: Date().addingTimeInterval(-45)
         )
 
-        self.accounts = [mockPro, mockTeam, mockNearLimit]
+        let mockUltra = Account(
+            name: "DeepMind Research Lab",
+            email: "researcher@lab.org",
+            organizationName: "DeepMind Research Lab",
+            accountUUID: "acct_uuid_mock_4",
+            plan: "Ultra",
+            accountType: "Business",
+            rateLimitTier: "ultra_high_tier",
+            accessToken: "mock_token_4",
+            proxy: ProxyConfig(isEnabled: false, url: "http://127.0.0.1:7890"),
+            isMock: true,
+            status: .active,
+            usage: ClaudeUsageService.shared.generateMockUsage(for: Account(name: "temp"), scenario: .fresh),
+            lastUpdated: Date().addingTimeInterval(-10)
+        )
+
+        let mockPersonalMax = Account(
+            name: "founder@indie.dev's Organization",
+            email: "founder@indie.dev",
+            organizationName: "founder@indie.dev's Organization",
+            accountUUID: "acct_uuid_mock_5",
+            plan: "Max (5x)",
+            accountType: "Personal",
+            rateLimitTier: "default_claude_max_5x",
+            accessToken: "mock_token_5",
+            proxy: ProxyConfig(isEnabled: true, url: "socks5://127.0.0.1:1080"),
+            isMock: true,
+            status: .active,
+            usage: ClaudeUsageService.shared.generateMockUsage(for: Account(name: "temp"), scenario: .normal),
+            lastUpdated: Date().addingTimeInterval(-20)
+        )
+
+        self.accounts = [mockPro, mockTeam, mockMax, mockUltra, mockPersonalMax]
         saveAccounts()
     }
 
@@ -170,23 +225,41 @@ public class AccountStore: ObservableObject {
         let count = accounts.filter { $0.isMock }.count + 1
         var emailPrefix = "test_user_\(count)"
         var orgName = "Test Workspace"
-        
+        var mockPlan = "Pro"
+        var mockType = "Personal"
+        var mockTier = "default_claude_ai"
+
         switch scenario {
         case .normal:
-            emailPrefix = "normal_coder"
+            emailPrefix = "personal_dev"
             orgName = "Personal Workspace"
+            mockPlan = "Pro"
+            mockType = "Personal"
+            mockTier = "default_claude_ai"
         case .heavy:
             emailPrefix = "heavy_builder"
             orgName = "Enterprise Devs"
+            mockPlan = "Max (20x)"
+            mockType = "Business"
+            mockTier = "default_claude_max_20x"
         case .critical:
             emailPrefix = "limit_tester"
             orgName = "High Throughput Lab"
+            mockPlan = "Max (5x)"
+            mockType = "Personal"
+            mockTier = "default_claude_max_5x"
         case .rateLimited:
             emailPrefix = "cooldown_user"
-            orgName = "Rate Limited Tier"
+            orgName = "Rate Limited Org"
+            mockPlan = "Pro"
+            mockType = "Personal"
+            mockTier = "default_claude_ai"
         case .fresh:
-            emailPrefix = "new_starter"
-            orgName = "Starter Org"
+            emailPrefix = "ai_research"
+            orgName = "Frontier Research Group"
+            mockPlan = "Ultra"
+            mockType = "Business"
+            mockTier = "ultra_tier"
         }
 
         let newAccount = Account(
@@ -194,6 +267,9 @@ public class AccountStore: ObservableObject {
             email: "\(emailPrefix)@claude.ai",
             organizationName: orgName,
             accountUUID: "mock_uuid_\(UUID().uuidString.prefix(8))",
+            plan: mockPlan,
+            accountType: mockType,
+            rateLimitTier: mockTier,
             accessToken: "mock_access_token_\(count)",
             proxy: ProxyConfig(isEnabled: false, url: "http://127.0.0.1:7890"),
             isMock: true,
@@ -245,6 +321,18 @@ public class AccountStore: ObservableObject {
                         }
                     } catch {
                         print("Token refresh warning: \(error)")
+                    }
+                }
+
+                // If plan or type is missing, try fetching bootstrap
+                if account.plan == nil || account.accountType == nil {
+                    if let bs = try? await ClaudeOAuthService.shared.fetchBootstrap(accessToken: account.accessToken, proxy: account.proxy) {
+                        account.plan = bs.parsedPlan
+                        account.accountType = bs.parsedAccountType
+                        account.rateLimitTier = bs.organizationRateLimitTier ?? bs.userRateLimitTier
+                    } else {
+                        account.plan = account.displayPlan
+                        account.accountType = account.displayAccountType
                     }
                 }
 

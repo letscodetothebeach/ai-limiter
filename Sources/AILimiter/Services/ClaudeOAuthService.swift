@@ -25,6 +25,8 @@ public struct BootstrapAccount: Codable {
     public let organizationName: String?
     public let organizationType: String?
     public let organizationRateLimitTier: String?
+    public let userRateLimitTier: String?
+    public let seatTier: String?
 
     enum CodingKeys: String, CodingKey {
         case accountUuid = "account_uuid"
@@ -33,6 +35,41 @@ public struct BootstrapAccount: Codable {
         case organizationName = "organization_name"
         case organizationType = "organization_type"
         case organizationRateLimitTier = "organization_rate_limit_tier"
+        case userRateLimitTier = "user_rate_limit_tier"
+        case seatTier = "seat_tier"
+    }
+
+    public var parsedPlan: String {
+        let orgType = (organizationType ?? "").lowercased()
+        let orgTier = (organizationRateLimitTier ?? "").lowercased()
+        let userTier = (userRateLimitTier ?? "").lowercased()
+
+        if orgType.contains("max") || orgTier.contains("max") || userTier.contains("max") {
+            if orgTier.contains("20x") || userTier.contains("20x") {
+                return "Max (20x)"
+            } else if orgTier.contains("5x") || userTier.contains("5x") {
+                return "Max (5x)"
+            }
+            return "Max"
+        } else if orgType.contains("ultra") || orgTier.contains("ultra") || userTier.contains("ultra") {
+            return "Ultra"
+        } else if orgType.contains("pro") || orgTier.contains("pro") || orgTier.contains("claude_ai") {
+            return "Pro"
+        } else if orgType.contains("team") {
+            return "Team"
+        }
+        return "Pro"
+    }
+
+    public var parsedAccountType: String {
+        let orgType = (organizationType ?? "").lowercased()
+        if orgType.contains("team") || orgType.contains("business") || orgType.contains("enterprise") {
+            return "Business"
+        }
+        if let orgName = organizationName, !orgName.contains("'s Organization") && !orgName.lowercased().contains("personal") {
+            return "Business"
+        }
+        return "Personal"
     }
 }
 

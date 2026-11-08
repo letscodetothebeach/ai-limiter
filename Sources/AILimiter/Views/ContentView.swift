@@ -32,11 +32,68 @@ struct AccountRowDropDelegate: DropDelegate {
     }
 }
 
+// Helper to ensure window does not auto-focus search field on launch
+// and unfocuses when clicking outside
+struct WindowFocusHelper: NSViewRepresentable {
+    var onUnfocus: () -> Void
+
+    func makeNSView(context: Context) -> FocusDummyNSView {
+        let view = FocusDummyNSView()
+        view.onResignFocus = onUnfocus
+        return view
+    }
+
+    func updateNSView(_ nsView: FocusDummyNSView, context: Context) {
+        nsView.onResignFocus = onUnfocus
+    }
+
+    @MainActor
+    final class FocusDummyNSView: NSView {
+        var onResignFocus: (() -> Void)?
+        private var monitor: Any?
+
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            guard let window = self.window else { return }
+            // Prevent search text field from being the automatic initial first responder
+            window.initialFirstResponder = self
+            DispatchQueue.main.async {
+                window.makeFirstResponder(nil)
+            }
+
+            if monitor == nil {
+                monitor = NSEvent.addLocalMonitorForEvents(matching: .leftMouseDown) { [weak self] event in
+                    guard let self = self, let win = self.window else { return event }
+                    if let firstResponder = win.firstResponder as? NSView,
+                       firstResponder is NSTextView || firstResponder is NSTextField {
+                        let locationInWindow = event.locationInWindow
+                        let hitView = win.contentView?.hitTest(locationInWindow)
+                        if hitView != firstResponder && !(hitView?.isDescendant(of: firstResponder) ?? false) {
+                            win.makeFirstResponder(nil)
+                            self.onResignFocus?()
+                        }
+                    }
+                    return event
+                }
+            }
+        }
+
+        override func viewWillMove(toWindow newWindow: NSWindow?) {
+            super.viewWillMove(toWindow: newWindow)
+            if newWindow == nil, let m = monitor {
+                NSEvent.removeMonitor(m)
+                monitor = nil
+            }
+        }
+    }
+}
+
 public struct ContentView: View {
     @EnvironmentObject var store: AccountStore
     @State private var isShowingAddSheet: Bool = false
     @State private var searchText: String = ""
     @State private var draggedAccount: Account? = nil
+    @FocusState private var isSearchFocused: Bool
 
     public init() {}
 
@@ -104,7 +161,16 @@ public struct ContentView: View {
             // Bottom Status Bar
             bottomStatusBar
         }
-        .frame(minWidth: 840, minHeight: 520)
+        .frame(minWidth: 940, minHeight: 520)
+        .background(WindowFocusHelper {
+            isSearchFocused = false
+        })
+        .onAppear {
+            isSearchFocused = false
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                NSApp.keyWindow?.makeFirstResponder(nil)
+            }
+        }
         .sheet(isPresented: $isShowingAddSheet) {
             AddAccountSheet()
                 .environmentObject(store)
@@ -120,23 +186,23 @@ public struct ContentView: View {
                 ZStack {
                     RoundedRectangle(cornerRadius: 8)
                         .fill(Color(red: 0.85, green: 0.47, blue: 0.34))
-                        .frame(width: 30, height: 30)
+                        .frame(width: 32, height: 32)
 
                     Image(systemName: "gauge.with.needle.fill")
-                        .font(.system(size: 15))
+                        .font(.system(size: 16))
                         .foregroundColor(.white)
                 }
 
                 VStack(alignment: .leading, spacing: 1) {
                     HStack(spacing: 6) {
                         Text("AI Limiter")
-                            .font(.system(size: 14, weight: .bold))
+                            .font(.system(size: 15, weight: .bold))
 
                         Text("\(store.accounts.count)")
                             .font(.system(size: 11, weight: .bold))
                             .foregroundColor(.secondary)
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 1)
+                            .padding(.horizontal, 7)
+                            .padding(.vertical, 1.5)
                             .background(Color.primary.opacity(0.06))
                             .cornerRadius(10)
                     }
@@ -145,26 +211,52 @@ public struct ContentView: View {
 
             Spacer()
 
-            // Search filter
-            HStack(spacing: 5) {
+            // Search filter with clear unfocus capability
+            HStack(spacing: 6) {
                 Image(systemName: "magnifyingglass")
                     .foregroundColor(.secondary)
-                    .font(.system(size: 11))
+                    .font(.system(size: 12))
                 TextField("Search...", text: $searchText)
                     .textFieldStyle(.plain)
-                    .font(.system(size: 11))
-                    .frame(width: 120)
+                    .font(.system(size: 12))
+                    .focused($isSearchFocused)
+                    .frame(width: 130)
+                    .onExitCommand {
+                        isSearchFocused = false
+                        NSApp.keyWindow?.makeFirstResponder(nil)
+                    }
+                    .onSubmit {
+                        isSearchFocused = false
+                        NSApp.keyWindow?.makeFirstResponder(nil)
+                    }
+
+                if !searchText.isEmpty {
+                    Button {
+                        searchText = ""
+                        isSearchFocused = false
+                        NSApp.keyWindow?.makeFirstResponder(nil)
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .foregroundColor(.secondary)
+                            .font(.system(size: 12))
+                    }
+                    .buttonStyle(.plain)
+                }
             }
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
             .background(Color.primary.opacity(0.04))
-            .cornerRadius(6)
+            .cornerRadius(8)
+            .overlay(
+                RoundedRectangle(cornerRadius: 8)
+                    .stroke(Color.primary.opacity(isSearchFocused ? 0.25 : 0.08), lineWidth: 1)
+            )
 
             // Auto-refresh control (with persistent state!)
-            HStack(spacing: 6) {
+            HStack(spacing: 8) {
                 Toggle(isOn: $store.autoRefreshEnabled) {
                     Text("Auto")
-                        .font(.system(size: 11))
+                        .font(.system(size: 12, weight: .medium))
                 }
                 .toggleStyle(.checkbox)
                 .help("Automatically refreshes limits periodically")
@@ -176,8 +268,8 @@ public struct ContentView: View {
                         Text("15m").tag(TimeInterval(900))
                     }
                     .pickerStyle(.menu)
-                    .frame(width: 65)
-                    .controlSize(.small)
+                    .frame(width: 72)
+                    .controlSize(.regular)
                 }
             }
 
@@ -187,31 +279,39 @@ public struct ContentView: View {
                     await store.refreshAllAccounts()
                 }
             } label: {
-                HStack(spacing: 4) {
+                HStack(spacing: 5) {
                     Image(systemName: "arrow.clockwise")
+                        .font(.system(size: 13, weight: .semibold))
                         .rotationEffect(.degrees(store.isRefreshingAll ? 360 : 0))
                         .animation(store.isRefreshingAll ? .linear(duration: 1).repeatForever(autoreverses: false) : .default, value: store.isRefreshingAll)
                     Text("Refresh All")
+                        .font(.system(size: 12, weight: .medium))
                 }
-                .font(.system(size: 12))
+                .padding(.horizontal, 10)
+                .frame(height: 30)
+                .fixedSize(horizontal: true, vertical: false)
             }
             .buttonStyle(.bordered)
-            .controlSize(.small)
+            .controlSize(.regular)
             .disabled(store.isRefreshingAll || store.accounts.isEmpty)
 
             // Primary Connect Button
             Button {
                 isShowingAddSheet = true
             } label: {
-                HStack(spacing: 5) {
+                HStack(spacing: 6) {
                     Image(systemName: "plus")
+                        .font(.system(size: 13, weight: .bold))
                     Text("Connect Account")
+                        .font(.system(size: 13, weight: .semibold))
                 }
-                .font(.system(size: 12, weight: .semibold))
+                .padding(.horizontal, 12)
+                .frame(height: 30)
+                .fixedSize(horizontal: true, vertical: false)
             }
             .buttonStyle(.borderedProminent)
             .tint(Color(red: 0.85, green: 0.47, blue: 0.34))
-            .controlSize(.small)
+            .controlSize(.regular)
 
             // Secondary Menu
             Menu {
@@ -237,65 +337,68 @@ public struct ContentView: View {
                 }
             } label: {
                 Image(systemName: "ellipsis")
-                    .font(.system(size: 12))
+                    .font(.system(size: 13, weight: .bold))
+                    .frame(width: 26, height: 26)
             }
             .menuStyle(.borderedButton)
-            .controlSize(.small)
-            .frame(width: 30)
+            .controlSize(.regular)
         }
         .padding(.horizontal, 16)
-        .padding(.vertical, 9)
+        .padding(.vertical, 10)
         .background(Color(nsColor: .windowBackgroundColor))
     }
 
     // MARK: - Column Headers
 
     private var columnHeaders: some View {
-        HStack(alignment: .center, spacing: 14) {
+        HStack(alignment: .center, spacing: 0) {
             Text("#")
-                .font(.system(size: 10, weight: .bold))
+                .font(.system(size: 11, weight: .bold))
                 .foregroundColor(.secondary)
                 .frame(width: 44, alignment: .leading)
 
             Circle()
                 .fill(Color.clear)
-                .frame(width: 8, height: 8)
+                .frame(width: 10, height: 10)
+
+            Spacer()
+                .frame(width: 10)
 
             Text("ACCOUNT")
-                .font(.system(size: 10, weight: .bold))
+                .font(.system(size: 11, weight: .bold))
                 .foregroundColor(.secondary)
-                .frame(width: 220, alignment: .leading)
+                .frame(width: 280, alignment: .leading)
 
             Spacer()
 
             Text("5-HOUR LIMIT")
-                .font(.system(size: 10, weight: .bold))
+                .font(.system(size: 11, weight: .bold))
                 .foregroundColor(.secondary)
-                .frame(width: 120, alignment: .leading)
+                .frame(width: 110, alignment: .leading)
 
             Spacer()
 
             Text("7-DAY LIMIT")
-                .font(.system(size: 10, weight: .bold))
+                .font(.system(size: 11, weight: .bold))
                 .foregroundColor(.secondary)
-                .frame(width: 120, alignment: .leading)
+                .frame(width: 110, alignment: .leading)
 
             Spacer()
 
             Text("PROXY")
-                .font(.system(size: 10, weight: .bold))
+                .font(.system(size: 11, weight: .bold))
                 .foregroundColor(.secondary)
-                .frame(width: 140, alignment: .leading)
+                .frame(width: 110, alignment: .leading)
 
             Spacer()
 
             Text("ACTIONS")
-                .font(.system(size: 10, weight: .bold))
+                .font(.system(size: 11, weight: .bold))
                 .foregroundColor(.secondary)
-                .frame(width: 65, alignment: .trailing)
+                .frame(width: 72, alignment: .trailing)
         }
-        .padding(.horizontal, 30)
-        .padding(.vertical, 6)
+        .padding(.horizontal, 28)
+        .padding(.vertical, 7)
         .background(Color.primary.opacity(0.02))
     }
 

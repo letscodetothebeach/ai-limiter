@@ -16,6 +16,50 @@ public enum AccountStatus: Codable, Equatable, Sendable {
         case .error(let msg): return "Error: \(msg)"
         }
     }
+
+    private enum CodingKeys: String, CodingKey {
+        case active, refreshing, expired, rateLimited, error
+    }
+
+    private enum RateLimitedKeys: String, CodingKey {
+        case resetsAt
+    }
+
+    private enum ErrorKeys: String, CodingKey {
+        case _0
+    }
+
+    public init(from decoder: Decoder) throws {
+        // Support decoding from plain string if present
+        if let single = try? decoder.singleValueContainer(), let str = try? single.decode(String.self) {
+            switch str.lowercased() {
+            case "active": self = .active
+            case "refreshing": self = .refreshing
+            case "expired": self = .expired
+            default: self = .active
+            }
+            return
+        }
+
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        if container.contains(.active) {
+            self = .active
+        } else if container.contains(.refreshing) {
+            self = .refreshing
+        } else if container.contains(.expired) {
+            self = .expired
+        } else if container.contains(.rateLimited) {
+            let sub = try? container.nestedContainer(keyedBy: RateLimitedKeys.self, forKey: .rateLimited)
+            let resetsAt = try? sub?.decodeIfPresent(Date.self, forKey: .resetsAt)
+            self = .rateLimited(resetsAt: resetsAt ?? nil)
+        } else if container.contains(.error) {
+            let sub = try? container.nestedContainer(keyedBy: ErrorKeys.self, forKey: .error)
+            let msg = (try? sub?.decode(String.self, forKey: ._0)) ?? "Unknown error"
+            self = .error(msg)
+        } else {
+            self = .active
+        }
+    }
 }
 
 public struct QuotaWindow: Identifiable, Codable, Equatable, Sendable {
@@ -110,6 +154,11 @@ public struct Account: Identifiable, Codable, Equatable, Sendable {
     public var organizationName: String?
     public var accountUUID: String?
     
+    // Package & Account Category
+    public var plan: String?               // e.g. "Max", "Max (20x)", "Pro", "Ultra", "Team"
+    public var accountType: String?        // e.g. "Personal", "Business", "Team"
+    public var rateLimitTier: String?      // e.g. "default_claude_max_20x"
+
     // Tokens
     public var accessToken: String
     public var refreshToken: String?
@@ -130,6 +179,9 @@ public struct Account: Identifiable, Codable, Equatable, Sendable {
         email: String? = nil,
         organizationName: String? = nil,
         accountUUID: String? = nil,
+        plan: String? = nil,
+        accountType: String? = nil,
+        rateLimitTier: String? = nil,
         accessToken: String = "",
         refreshToken: String? = nil,
         tokenExpiresAt: Date? = nil,
@@ -144,6 +196,9 @@ public struct Account: Identifiable, Codable, Equatable, Sendable {
         self.email = email
         self.organizationName = organizationName
         self.accountUUID = accountUUID
+        self.plan = plan
+        self.accountType = accountType
+        self.rateLimitTier = rateLimitTier
         self.accessToken = accessToken
         self.refreshToken = refreshToken
         self.tokenExpiresAt = tokenExpiresAt
@@ -152,5 +207,86 @@ public struct Account: Identifiable, Codable, Equatable, Sendable {
         self.status = status
         self.usage = usage
         self.lastUpdated = lastUpdated
+    }
+}
+
+// MARK: - Display Helpers & Inference
+
+public extension Account {
+    /// Inferred or explicit account type: "Personal" or "Business" / "Team"
+    var displayAccountType: String {
+        if let type = accountType, !type.isEmpty {
+            let lower = type.lowercased()
+            if lower.contains("personal") { return "Personal" }
+            if lower.contains("team") { return "Team" }
+            if lower.contains("business") || lower.contains("company") || lower.contains("enterprise") { return "Business" }
+            return type.capitalized
+        }
+        let org = (organizationName ?? name).lowercased()
+        if org.contains("'s organization") || org.contains("personal") {
+            return "Personal"
+        }
+        if let email = email, org.contains(email.lowercased()) {
+            return "Personal"
+        }
+        return "Business"
+    }
+
+    /// Inferred or explicit package / plan: "Ultra", "Max", "Pro", "Team", "Free"
+    var displayPlan: String {
+        if let p = plan, !p.isEmpty && p != "Claude Code" {
+            return formatPlanString(p)
+        }
+        if let tier = rateLimitTier, !tier.isEmpty {
+            let lower = tier.lowercased()
+            if lower.contains("max_20x") || lower.contains("20x") { return "Max (20x)" }
+            if lower.contains("max_5x") || lower.contains("5x") { return "Max (5x)" }
+            if lower.contains("max") { return "Max" }
+            if lower.contains("ultra") { return "Ultra" }
+            if lower.contains("pro") || lower.contains("claude_ai") { return "Pro" }
+            if lower.contains("team") { return "Team" }
+        }
+        if let uPlan = usage?.plan, !uPlan.isEmpty && uPlan != "Claude Code" {
+            return formatPlanString(uPlan)
+        }
+        // Inferred fallback based on organizationName or email
+        let org = (organizationName ?? "").lowercased()
+        if org.contains("enterprise") || org.contains("ultra") {
+            return "Ultra"
+        }
+        if org.contains("team") {
+            return "Team"
+        }
+        return "Pro"
+    }
+
+    /// User-friendly display name avoiding clumsy "xxx@gmail.com's Organization"
+    var cleanDisplayName: String {
+        let raw = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        if raw.contains("'s Organization") {
+            let prefix = raw.replacingOccurrences(of: "'s Organization", with: "")
+            if let atIdx = prefix.firstIndex(of: "@") {
+                return String(prefix[..<atIdx])
+            }
+            return prefix
+        }
+        if let email = email, raw.lowercased() == "\(email.lowercased())'s organization" {
+            if let atIdx = email.firstIndex(of: "@") {
+                return String(email[..<atIdx])
+            }
+            return "Personal"
+        }
+        return raw.isEmpty ? (email ?? "Account") : raw
+    }
+
+    private func formatPlanString(_ raw: String) -> String {
+        let lower = raw.lowercased()
+        if lower.contains("20x") { return "Max (20x)" }
+        if lower.contains("5x") { return "Max (5x)" }
+        if lower.contains("max") { return "Max" }
+        if lower.contains("ultra") { return "Ultra" }
+        if lower.contains("pro") { return "Pro" }
+        if lower.contains("team") { return "Team" }
+        return raw
     }
 }

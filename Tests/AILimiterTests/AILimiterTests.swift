@@ -206,4 +206,81 @@ struct AILimiterTests {
         #expect(critical.session5h?.utilization == 96.8)
         #expect(critical.session5h?.remainingPercentageString == "3.2%")
     }
+
+    @Test func testAccountPlanAndTypeInference() throws {
+        // Personal with email organization
+        let personalAcct = Account(
+            name: "developer.one@gmail.com's Organization",
+            email: "developer.one@gmail.com",
+            organizationName: "developer.one@gmail.com's Organization",
+            plan: "Max (20x)",
+            accountType: "Personal"
+        )
+        #expect(personalAcct.cleanDisplayName == "developer.one")
+        #expect(personalAcct.displayAccountType == "Personal")
+        #expect(personalAcct.displayPlan == "Max (20x)")
+
+        // Business with custom company name
+        let companyAcct = Account(
+            name: "Acme Cloud Studio",
+            email: "lead@acmestudio.net",
+            organizationName: "Acme Cloud Studio",
+            rateLimitTier: "default_claude_max_5x"
+        )
+        #expect(companyAcct.cleanDisplayName == "Acme Cloud Studio")
+        #expect(companyAcct.displayAccountType == "Business")
+        #expect(companyAcct.displayPlan == "Max (5x)")
+
+        // Ultra tier
+        let ultraAcct = Account(
+            name: "Frontier Lab",
+            organizationName: "AI Research Lab",
+            plan: "Ultra",
+            accountType: "Business"
+        )
+        #expect(ultraAcct.cleanDisplayName == "Frontier Lab")
+        #expect(ultraAcct.displayAccountType == "Business")
+        #expect(ultraAcct.displayPlan == "Ultra")
+    }
+
+    @Test func testBootstrapAccountPlanParsing() throws {
+        let max20x = BootstrapAccount(
+            accountUuid: "uuid-1",
+            accountEmail: "dev@example.com",
+            organizationUuid: "org-1",
+            organizationName: "dev@example.com's Organization",
+            organizationType: "claude_max",
+            organizationRateLimitTier: "default_claude_max_20x",
+            userRateLimitTier: nil,
+            seatTier: nil
+        )
+        #expect(max20x.parsedPlan == "Max (20x)")
+        #expect(max20x.parsedAccountType == "Personal")
+
+        let team5x = BootstrapAccount(
+            accountUuid: "uuid-2",
+            accountEmail: "leader@corp.io",
+            organizationUuid: "org-2",
+            organizationName: "Tech Hub Corp",
+            organizationType: "claude_team",
+            organizationRateLimitTier: "default_raven",
+            userRateLimitTier: "default_claude_max_5x",
+            seatTier: "team_tier_1"
+        )
+        #expect(team5x.parsedPlan == "Max (5x)")
+        #expect(team5x.parsedAccountType == "Business")
+
+        let pro = BootstrapAccount(
+            accountUuid: "uuid-3",
+            accountEmail: "solo@gmail.com",
+            organizationUuid: "org-3",
+            organizationName: "solo@gmail.com's Organization",
+            organizationType: "claude_pro",
+            organizationRateLimitTier: "default_claude_ai",
+            userRateLimitTier: nil,
+            seatTier: nil
+        )
+        #expect(pro.parsedPlan == "Pro")
+        #expect(pro.parsedAccountType == "Personal")
+    }
 }
