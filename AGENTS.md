@@ -62,10 +62,10 @@ swift test
 # Generate icon (if needed)
 swift generate-icon.swift
 
-# Build the release .app bundle
+# Build the release .app bundle (auto-signs with Developer ID if present)
 ./build-app.sh
 
-# Build the distributable .dmg disk image
+# Build the distributable .dmg disk image (signs, submits to notarytool, and staples ticket)
 ./build-dmg.sh
 ```
 

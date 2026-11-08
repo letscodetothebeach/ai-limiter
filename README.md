@@ -61,10 +61,7 @@ AI Limiter is purely an observability utility designed to make developer life ea
 4. Launch **AI Limiter** from Launchpad or Spotlight.
 
 > [!NOTE]
-> If macOS Gatekeeper displays *"AI Limiter is damaged and can't be opened"*, this occurs because the binary downloaded from the web is not notarized by Apple. You can clear the quarantine attribute by running:
-> ```bash
-> xattr -cr "/Applications/AI Limiter.app"
-> ```
+> All official release binaries are signed with Apple Developer ID and notarized by Apple so they run smoothly with macOS Gatekeeper. If building locally from source without a Developer ID certificate, an ad-hoc signature is applied.
 
 ### Build from Source
 
@@ -81,10 +78,11 @@ swift test
 # Build the release app bundle (.app)
 ./build-app.sh
 
-# Optional: Build and sign with your Apple Developer identity
+# Optional: Build and sign with your Apple Developer identity (auto-detected if available)
 # SIGN_IDENTITY="Developer ID Application: Your Name (TEAM_ID)" ./build-app.sh
 
-# Build a distributable DMG (.dmg)
+# Build a distributable, signed, and Apple-notarized DMG (.dmg)
+# Automatically uses keychain profile 'claude-pool-notary' (or set NOTARY_PROFILE="your-profile")
 ./build-dmg.sh
 
 # Launch the app

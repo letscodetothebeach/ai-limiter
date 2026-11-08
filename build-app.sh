@@ -60,9 +60,16 @@ chmod +x "${MACOS_DIR}/AILimiter"
 touch "${BUNDLE_DIR}"
 
 SIGN_IDENTITY="${SIGN_IDENTITY:-$1}"
+if [ -z "$SIGN_IDENTITY" ]; then
+    DETECTED_ID=$(security find-identity -p codesigning -v 2>/dev/null | grep "Developer ID Application:" | head -n 1 | sed -E 's/.*"([^"]+)".*/\1/' || true)
+    if [ -n "$DETECTED_ID" ]; then
+        SIGN_IDENTITY="$DETECTED_ID"
+    fi
+fi
+
 if [ -n "$SIGN_IDENTITY" ]; then
     echo "==> Signing app bundle with identity: ${SIGN_IDENTITY}..."
-    codesign --force --deep --options runtime --sign "${SIGN_IDENTITY}" "${BUNDLE_DIR}"
+    codesign --force --deep --options runtime --timestamp --sign "${SIGN_IDENTITY}" "${BUNDLE_DIR}"
 else
     echo "==> Ad-hoc signing app bundle (use SIGN_IDENTITY='...' to sign with Apple Developer)..."
     codesign --force --deep --sign - "${BUNDLE_DIR}"
