@@ -22,6 +22,7 @@ public class AccountStore: ObservableObject {
     }
     @Published public var selectedAccountId: UUID?
     @Published public var lastGlobalRefresh: Date?
+    @Published public var accountToReauth: Account? = nil
 
     private var autoRefreshTimer: AnyCancellable?
     private let storageUrl: URL
@@ -205,6 +206,37 @@ public class AccountStore: ObservableObject {
     public func updateAccountName(id: UUID, newName: String) {
         guard let index = accounts.firstIndex(where: { $0.id == id }) else { return }
         accounts[index].name = newName.trimmingCharacters(in: .whitespacesAndNewlines)
+        saveAccounts()
+    }
+
+    public func updateAccountTokens(
+        id: UUID,
+        accessToken: String,
+        refreshToken: String?,
+        tokenExpiresAt: Date?,
+        bootstrap: BootstrapAccount? = nil
+    ) {
+        guard let index = accounts.firstIndex(where: { $0.id == id }) else { return }
+        accounts[index].accessToken = accessToken
+        if let rt = refreshToken {
+            accounts[index].refreshToken = rt
+        }
+        accounts[index].tokenExpiresAt = tokenExpiresAt
+        if let bs = bootstrap {
+            accounts[index].plan = bs.parsedPlan
+            accounts[index].accountType = bs.parsedAccountType
+            if let org = bs.organizationName, !org.isEmpty {
+                accounts[index].organizationName = org
+            }
+            if let email = bs.accountEmail, !email.isEmpty {
+                accounts[index].email = email
+            }
+            if let tier = bs.organizationRateLimitTier ?? bs.userRateLimitTier {
+                accounts[index].rateLimitTier = tier
+            }
+        }
+        accounts[index].isMock = false
+        accounts[index].status = .active
         saveAccounts()
     }
 

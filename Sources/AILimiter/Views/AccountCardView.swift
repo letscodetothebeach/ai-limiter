@@ -133,6 +133,22 @@ public struct AccountCardView: View {
                 // Status Badge & Action Buttons
                 statusBadge
 
+                if account.isNeedsAuth {
+                    Button {
+                        store.accountToReauth = account
+                    } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: "key.fill")
+                            Text("Reauth")
+                        }
+                        .font(.system(size: 12, weight: .bold))
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(Color(red: 0.85, green: 0.47, blue: 0.34))
+                    .controlSize(.regular)
+                    .help("Re-authenticate account with Claude.ai")
+                }
+
                 // Refresh Button
                 Button {
                     Task {
@@ -202,13 +218,28 @@ public struct AccountCardView: View {
                     }
                 }
             } else {
-                HStack {
-                    Image(systemName: "info.circle")
-                        .foregroundColor(.secondary)
-                    Text("No usage data yet. Click Refresh to query limits.")
-                        .font(.system(size: 13))
-                        .foregroundColor(.secondary)
-                    Spacer()
+                VStack(alignment: .leading, spacing: 6) {
+                    if let err = account.status.errorMessage {
+                        HStack(spacing: 6) {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .foregroundColor(.red)
+                            Text("Connection Error: \(err)")
+                                .font(.system(size: 12, weight: .semibold))
+                                .foregroundColor(.red)
+                        }
+                        Text("This account could not fetch subscription usage. Click 'Reauth' above to sign in again.")
+                            .font(.system(size: 11))
+                            .foregroundColor(.secondary)
+                    } else {
+                        HStack {
+                            Image(systemName: "info.circle")
+                                .foregroundColor(.secondary)
+                            Text("No usage data yet. Click Refresh to query limits.")
+                                .font(.system(size: 13))
+                                .foregroundColor(.secondary)
+                            Spacer()
+                        }
+                    }
                 }
                 .padding(.vertical, 8)
             }
@@ -351,19 +382,34 @@ public struct AccountCardView: View {
     }
 
     private var statusBadge: some View {
-        HStack(spacing: 5) {
-            Circle()
-                .fill(statusColor)
-                .frame(width: 7, height: 7)
+        Button {
+            if account.isNeedsAuth {
+                store.accountToReauth = account
+            }
+        } label: {
+            HStack(spacing: 5) {
+                if case .error = account.status {
+                    Image(systemName: "exclamationmark.circle.fill")
+                        .font(.system(size: 9, weight: .bold))
+                        .foregroundColor(.red)
+                } else {
+                    Circle()
+                        .fill(statusColor)
+                        .frame(width: 7, height: 7)
+                }
 
-            Text(account.status.title)
-                .font(.system(size: 11, weight: .semibold))
-                .foregroundColor(statusColor)
+                Text(account.status.title)
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundColor(statusColor)
+                    .lineLimit(1)
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 3)
+            .background(statusColor.opacity(0.12))
+            .cornerRadius(6)
         }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 3)
-        .background(statusColor.opacity(0.12))
-        .cornerRadius(6)
+        .buttonStyle(.plain)
+        .help(account.isNeedsAuth ? "Click to re-authenticate account" : account.status.title)
     }
 
     private var statusColor: Color {

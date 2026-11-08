@@ -73,6 +73,7 @@ public struct AccountRowView: View {
     @State private var editedName: String = ""
     @State private var isShowingDeleteConfirmation: Bool = false
     @State private var isShowingProxyPopover: Bool = false
+    @State private var isShowingStatusPopover: Bool = false
 
     // Local proxy state for popover editing
     @State private var localProxyEnabled: Bool = false
@@ -96,6 +97,25 @@ public struct AccountRowView: View {
         }
     }
 
+    private var statusTooltipText: String {
+        switch account.status {
+        case .error(let msg):
+            return "🔴 Connection Error: \(msg)\nClick to view details & re-authenticate"
+        case .expired:
+            return "🟡 Token Expired\nClick to re-authenticate"
+        case .rateLimited(let resetsAt):
+            if let resetsAt = resetsAt {
+                let diff = max(0, Int(resetsAt.timeIntervalSince(Date())))
+                return "🟠 Rate Limited (429) - Cooldown: \(diff)s remaining"
+            }
+            return "🟠 Rate Limited (429)"
+        case .refreshing:
+            return "🔵 Refreshing account limits..."
+        case .active:
+            return "🟢 Status: Active (Connected successfully)"
+        }
+    }
+
     public var body: some View {
         HStack(alignment: .center, spacing: 0) {
             // Drag Handle & Row Index (1, 2, 3...)
@@ -114,11 +134,37 @@ public struct AccountRowView: View {
             }
             .frame(width: 44, alignment: .leading)
 
-            // Status Dot
-            Circle()
-                .fill(statusColor)
-                .frame(width: 10, height: 10)
-                .help("Status: \(account.status.title)")
+            // Status Indicator (Clickable with rich Popover & Tooltip)
+            Button {
+                isShowingStatusPopover.toggle()
+            } label: {
+                ZStack {
+                    if case .error = account.status {
+                        Image(systemName: "exclamationmark.circle.fill")
+                            .font(.system(size: 13, weight: .bold))
+                            .foregroundColor(.red)
+                    } else if case .expired = account.status {
+                        Image(systemName: "clock.badge.exclamationmark.fill")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundColor(.yellow)
+                    } else if case .rateLimited = account.status {
+                        Image(systemName: "hourglass.circle.fill")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundColor(.orange)
+                    } else {
+                        Circle()
+                            .fill(statusColor)
+                            .frame(width: 10, height: 10)
+                    }
+                }
+                .frame(width: 16, height: 16)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .help(statusTooltipText)
+            .popover(isPresented: $isShowingStatusPopover, arrowEdge: .trailing) {
+                statusDetailsPopover
+            }
 
             Spacer()
                 .frame(width: 10)
@@ -183,6 +229,27 @@ public struct AccountRowView: View {
                             .lineLimit(1)
                     }
                 }
+
+                if let errMsg = account.status.errorMessage {
+                    Button {
+                        isShowingStatusPopover = true
+                    } label: {
+                        HStack(spacing: 3) {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .font(.system(size: 8))
+                            Text(errMsg)
+                                .font(.system(size: 10, weight: .medium))
+                                .lineLimit(1)
+                        }
+                        .foregroundColor(.red)
+                        .padding(.horizontal, 5)
+                        .padding(.vertical, 1.5)
+                        .background(Color.red.opacity(0.1))
+                        .cornerRadius(4)
+                    }
+                    .buttonStyle(.plain)
+                    .help("Click to view error details & re-authenticate")
+                }
             }
             .frame(width: 280, alignment: .leading)
 
@@ -190,7 +257,27 @@ public struct AccountRowView: View {
 
             // 5-Hour Session Quota Column (Width 110)
             VStack(alignment: .leading, spacing: 2) {
-                CompactQuotaMeter(title: "5-Hour Session", quota: account.usage?.session5h)
+                if account.isNeedsAuth && account.usage == nil {
+                    Button {
+                        store.accountToReauth = account
+                    } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: "key.fill")
+                                .font(.system(size: 9))
+                            Text("Reauth")
+                                .font(.system(size: 11, weight: .bold))
+                        }
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 8)
+                        .frame(height: 24)
+                        .background(Color(red: 0.85, green: 0.47, blue: 0.34))
+                        .cornerRadius(5)
+                    }
+                    .buttonStyle(.plain)
+                    .help("Re-authenticate to restore quota tracking")
+                } else {
+                    CompactQuotaMeter(title: "5-Hour Session", quota: account.usage?.session5h)
+                }
             }
             .frame(width: 110, alignment: .leading)
 
@@ -239,8 +326,23 @@ public struct AccountRowView: View {
 
             Spacer()
 
-            // Actions Column: Refresh & Delete (Width 72, 30x30 buttons)
+            // Actions Column: Reauth, Refresh & Delete (Width 100, 30x30 buttons)
             HStack(spacing: 6) {
+                if account.isNeedsAuth {
+                    Button {
+                        store.accountToReauth = account
+                    } label: {
+                        Image(systemName: "key.fill")
+                            .font(.system(size: 12, weight: .bold))
+                            .foregroundColor(.white)
+                    }
+                    .buttonStyle(.plain)
+                    .frame(width: 30, height: 30)
+                    .background(Color(red: 0.85, green: 0.47, blue: 0.34))
+                    .cornerRadius(6)
+                    .help("Re-authenticate account with Claude.ai")
+                }
+
                 Button {
                     Task {
                         await store.refreshAccount(id: account.id)
@@ -271,7 +373,7 @@ public struct AccountRowView: View {
                 .cornerRadius(6)
                 .help("Remove account")
             }
-            .frame(width: 72, alignment: .trailing)
+            .frame(width: 100, alignment: .trailing)
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
@@ -283,6 +385,32 @@ public struct AccountRowView: View {
             RoundedRectangle(cornerRadius: 8)
                 .stroke(Color.primary.opacity(0.05), lineWidth: 1)
         )
+        .contextMenu {
+            if account.isNeedsAuth {
+                Button {
+                    store.accountToReauth = account
+                } label: {
+                    Label("Re-authenticate '\(account.cleanDisplayName)'", systemImage: "key.fill")
+                }
+                Divider()
+            }
+
+            Button {
+                Task {
+                    await store.refreshAccount(id: account.id)
+                }
+            } label: {
+                Label("Refresh Limits", systemImage: "arrow.clockwise")
+            }
+
+            Divider()
+
+            Button(role: .destructive) {
+                isShowingDeleteConfirmation = true
+            } label: {
+                Label("Remove Account", systemImage: "trash")
+            }
+        }
         .confirmationDialog(
             "Remove '\(account.name)'?",
             isPresented: $isShowingDeleteConfirmation,
@@ -293,6 +421,88 @@ public struct AccountRowView: View {
             }
             Button("Cancel", role: .cancel) {}
         }
+    }
+
+    // MARK: - Status Details Popover
+
+    private var statusDetailsPopover: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 6) {
+                Image(systemName: account.isNeedsAuth ? "exclamationmark.triangle.fill" : "info.circle.fill")
+                    .foregroundColor(statusColor)
+                    .font(.system(size: 13))
+                Text(account.status.title)
+                    .font(.system(size: 12, weight: .bold))
+                Spacer()
+            }
+
+            if let errorMsg = account.status.errorMessage {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Error Details:")
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundColor(.secondary)
+
+                    Text(errorMsg)
+                        .font(.system(size: 11, design: .monospaced))
+                        .foregroundColor(.primary)
+                        .padding(8)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(Color.red.opacity(0.08))
+                        .cornerRadius(6)
+                        .textSelection(.enabled)
+                }
+
+                Text("The credentials for this account could not retrieve usage limits. Re-authenticating with Claude.ai will issue fresh tokens and restore limit tracking.")
+                    .font(.system(size: 10))
+                    .foregroundColor(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            HStack(spacing: 8) {
+                if account.isNeedsAuth {
+                    Button {
+                        isShowingStatusPopover = false
+                        store.accountToReauth = account
+                    } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: "key.fill")
+                            Text("Re-authenticate")
+                        }
+                        .font(.system(size: 11, weight: .bold))
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(Color(red: 0.85, green: 0.47, blue: 0.34))
+                    .controlSize(.small)
+                }
+
+                if let errorMsg = account.status.errorMessage {
+                    Button {
+                        let pb = NSPasteboard.general
+                        pb.clearContents()
+                        pb.setString(errorMsg, forType: .string)
+                    } label: {
+                        HStack(spacing: 3) {
+                            Image(systemName: "doc.on.doc")
+                            Text("Copy Error")
+                        }
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                }
+
+                Spacer()
+
+                Button("Retry") {
+                    isShowingStatusPopover = false
+                    Task {
+                        await store.refreshAccount(id: account.id)
+                    }
+                }
+                .controlSize(.small)
+            }
+        }
+        .padding(14)
+        .frame(width: 320)
     }
 
     // MARK: - Proxy Popover

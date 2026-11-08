@@ -283,4 +283,66 @@ struct AILimiterTests {
         #expect(pro.parsedPlan == "Pro")
         #expect(pro.parsedAccountType == "Personal")
     }
+
+    @Test func testReauthAndErrorStatusHelpers() throws {
+        let activeStatus = AccountStatus.active
+        #expect(!activeStatus.isError)
+        #expect(!activeStatus.isNeedsAuth)
+        #expect(activeStatus.errorMessage == nil)
+
+        let errorStatus = AccountStatus.error("Connection failed")
+        #expect(errorStatus.isError)
+        #expect(errorStatus.isNeedsAuth)
+        #expect(errorStatus.errorMessage == "Connection failed")
+
+        let expiredStatus = AccountStatus.expired
+        #expect(!expiredStatus.isError)
+        #expect(expiredStatus.isNeedsAuth)
+
+        let account = Account(name: "Acme Engineer", status: errorStatus)
+        #expect(account.isNeedsAuth)
+    }
+
+    @Test func testUpdateAccountTokens() throws {
+        let store = AccountStore()
+        let id = UUID()
+        let initialAcct = Account(
+            id: id,
+            name: "Team Tester",
+            accessToken: "old_token",
+            refreshToken: "old_refresh",
+            status: .error("Token revoked")
+        )
+        store.accounts = [initialAcct]
+
+        #expect(store.accounts[0].isNeedsAuth)
+        #expect(store.accounts[0].accessToken == "old_token")
+
+        let mockBootstrap = BootstrapAccount(
+            accountUuid: "uuid-99",
+            accountEmail: "team@example.com",
+            organizationUuid: "org-99",
+            organizationName: "Team Workspace",
+            organizationType: "claude_team",
+            organizationRateLimitTier: "default_claude_max_20x",
+            userRateLimitTier: nil,
+            seatTier: nil
+        )
+
+        let newExpires = Date().addingTimeInterval(3600)
+        store.updateAccountTokens(
+            id: id,
+            accessToken: "new_token_xyz",
+            refreshToken: "new_refresh_abc",
+            tokenExpiresAt: newExpires,
+            bootstrap: mockBootstrap
+        )
+
+        #expect(store.accounts[0].accessToken == "new_token_xyz")
+        #expect(store.accounts[0].refreshToken == "new_refresh_abc")
+        #expect(store.accounts[0].status == .active)
+        #expect(!store.accounts[0].isNeedsAuth)
+        #expect(store.accounts[0].plan == "Max (20x)")
+        #expect(store.accounts[0].accountType == "Business")
+    }
 }

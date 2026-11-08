@@ -175,6 +175,10 @@ public struct ContentView: View {
             AddAccountSheet()
                 .environmentObject(store)
         }
+        .sheet(item: $store.accountToReauth) { account in
+            ReauthSheet(account: account)
+                .environmentObject(store)
+        }
     }
 
     // MARK: - Top Toolbar
@@ -395,7 +399,7 @@ public struct ContentView: View {
             Text("ACTIONS")
                 .font(.system(size: 11, weight: .bold))
                 .foregroundColor(.secondary)
-                .frame(width: 72, alignment: .trailing)
+                .frame(width: 100, alignment: .trailing)
         }
         .padding(.horizontal, 28)
         .padding(.vertical, 7)

@@ -17,6 +17,23 @@ public enum AccountStatus: Codable, Equatable, Sendable {
         }
     }
 
+    public var isError: Bool {
+        if case .error = self { return true }
+        return false
+    }
+
+    public var errorMessage: String? {
+        if case .error(let msg) = self { return msg }
+        return nil
+    }
+
+    public var isNeedsAuth: Bool {
+        switch self {
+        case .error, .expired: return true
+        default: return false
+        }
+    }
+
     private enum CodingKeys: String, CodingKey {
         case active, refreshing, expired, rateLimited, error
     }
@@ -213,6 +230,10 @@ public struct Account: Identifiable, Codable, Equatable, Sendable {
 // MARK: - Display Helpers & Inference
 
 public extension Account {
+    var isNeedsAuth: Bool {
+        status.isNeedsAuth
+    }
+
     /// Inferred or explicit account type: "Personal" or "Business" / "Team"
     var displayAccountType: String {
         if let type = accountType, !type.isEmpty {
