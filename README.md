@@ -16,7 +16,12 @@ Designed with an ultra-compact layout, AI Limiter displays dozens of accounts at
 - **High-Density Compact Dashboard**:
   - Displays 15–20+ accounts on a single screen without vertical scrolling (~48px per row).
   - Clear row index badges (`1`, `2`, `3`, `4`...) for instant identification.
-  - Quick-action buttons directly on each row for instant refresh, proxy setup, and removal.
+  - Generous display space for full account names and subscription package tiers without truncation.
+  - Streamlined action controls (Proxy, Refresh, Delete) directly on each row.
+- **Project Notes & Tracking**:
+  - Assign descriptive notes or project tags to each account (e.g., `Project Alpha`, `Mobile Client App`).
+  - 1-click popover and context menu for rapid note editing directly from the main list.
+  - Full-text search filtering by project note or account name from the top toolbar.
 - **Drag & Drop Reordering**:
   - Rearrange account rows effortlessly using the drag handle (`≡`).
   - Custom order is automatically saved and persisted across launches.

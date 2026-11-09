@@ -8,6 +8,8 @@ public struct AccountCardView: View {
     @State private var editedName: String = ""
     @State private var isShowingDeleteConfirmation: Bool = false
     @State private var isProxySettingsExpanded: Bool = false
+    @State private var isShowingNotePopover: Bool = false
+    @State private var localNoteText: String = ""
 
     // Local proxy state for editing
     @State private var localProxyEnabled: Bool = false
@@ -107,7 +109,7 @@ public struct AccountCardView: View {
                         if let email = account.email, !email.isEmpty {
                             HStack(spacing: 4) {
                                 Image(systemName: "envelope")
-                                    .font(.system(size: 10))
+                                .font(.system(size: 10))
                                 Text(email)
                                     .font(.system(size: 12))
                             }
@@ -124,6 +126,36 @@ public struct AccountCardView: View {
                                     .font(.system(size: 12))
                             }
                             .foregroundColor(.secondary)
+                        }
+                    }
+
+                    // Project / Note
+                    HStack(spacing: 6) {
+                        Image(systemName: "folder.fill")
+                            .font(.system(size: 10))
+                            .foregroundColor(Color(red: 0.85, green: 0.47, blue: 0.34))
+
+                        if let note = account.note, !note.isEmpty {
+                            Text(note)
+                                .font(.system(size: 11, weight: .medium))
+                                .foregroundColor(.primary)
+                        } else {
+                            Text("No project note")
+                                .font(.system(size: 11))
+                                .foregroundColor(.secondary.opacity(0.6))
+                        }
+
+                        Button {
+                            localNoteText = account.note ?? ""
+                            isShowingNotePopover = true
+                        } label: {
+                            Image(systemName: "pencil")
+                                .font(.system(size: 10))
+                                .foregroundColor(.secondary)
+                        }
+                        .buttonStyle(.plain)
+                        .popover(isPresented: $isShowingNotePopover) {
+                            notePopover
                         }
                     }
                 }
@@ -428,6 +460,61 @@ public struct AccountCardView: View {
             store.updateAccountName(id: account.id, newName: trimmed)
         }
         isEditingName = false
+    }
+
+    private var notePopover: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 6) {
+                Image(systemName: "folder.fill")
+                    .foregroundColor(Color(red: 0.85, green: 0.47, blue: 0.34))
+                    .font(.system(size: 13))
+                Text("Project / Note")
+                    .font(.system(size: 12, weight: .bold))
+                Spacer()
+            }
+
+            Text("Assign this account to a project or add a description.")
+                .font(.system(size: 11))
+                .foregroundColor(.secondary)
+
+            TextField("Project name or note", text: $localNoteText)
+                .textFieldStyle(.roundedBorder)
+                .font(.system(size: 12))
+                .frame(width: 250)
+                .onSubmit {
+                    store.updateAccountNote(id: account.id, note: localNoteText)
+                    isShowingNotePopover = false
+                }
+
+            HStack {
+                if let note = account.note, !note.isEmpty {
+                    Button(role: .destructive) {
+                        store.updateAccountNote(id: account.id, note: "")
+                        isShowingNotePopover = false
+                    } label: {
+                        Text("Clear")
+                    }
+                    .controlSize(.small)
+                }
+
+                Spacer()
+
+                Button("Cancel") {
+                    isShowingNotePopover = false
+                }
+                .controlSize(.small)
+
+                Button("Save") {
+                    store.updateAccountNote(id: account.id, note: localNoteText)
+                    isShowingNotePopover = false
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(Color(red: 0.85, green: 0.47, blue: 0.34))
+                .controlSize(.small)
+            }
+        }
+        .padding(14)
+        .frame(width: 280)
     }
 
     private func saveProxy() {

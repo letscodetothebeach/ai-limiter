@@ -107,6 +107,7 @@ public class AccountStore: ObservableObject {
             plan: "Pro",
             accountType: "Personal",
             rateLimitTier: "default_claude_ai",
+            note: "Personal CLI & Experiments",
             accessToken: "mock_token_1",
             proxy: ProxyConfig(isEnabled: false, url: "http://127.0.0.1:7890"),
             isMock: true,
@@ -123,6 +124,7 @@ public class AccountStore: ObservableObject {
             plan: "Team",
             accountType: "Business",
             rateLimitTier: "team_tier_1",
+            note: "Backend Core API Service",
             accessToken: "mock_token_2",
             proxy: ProxyConfig(isEnabled: true, url: "http://127.0.0.1:7890"),
             isMock: true,
@@ -139,6 +141,7 @@ public class AccountStore: ObservableObject {
             plan: "Max (20x)",
             accountType: "Business",
             rateLimitTier: "default_claude_max_20x",
+            note: "CI/CD Code Review Bot",
             accessToken: "mock_token_3",
             proxy: ProxyConfig(isEnabled: false, url: "socks5://127.0.0.1:1080"),
             isMock: true,
@@ -155,6 +158,7 @@ public class AccountStore: ObservableObject {
             plan: "Ultra",
             accountType: "Business",
             rateLimitTier: "ultra_high_tier",
+            note: "LLM Fine-tuning Pipeline",
             accessToken: "mock_token_4",
             proxy: ProxyConfig(isEnabled: false, url: "http://127.0.0.1:7890"),
             isMock: true,
@@ -171,6 +175,7 @@ public class AccountStore: ObservableObject {
             plan: "Max (5x)",
             accountType: "Personal",
             rateLimitTier: "default_claude_max_5x",
+            note: "Client Mobile App (iOS)",
             accessToken: "mock_token_5",
             proxy: ProxyConfig(isEnabled: true, url: "socks5://127.0.0.1:1080"),
             isMock: true,
@@ -206,6 +211,13 @@ public class AccountStore: ObservableObject {
     public func updateAccountName(id: UUID, newName: String) {
         guard let index = accounts.firstIndex(where: { $0.id == id }) else { return }
         accounts[index].name = newName.trimmingCharacters(in: .whitespacesAndNewlines)
+        saveAccounts()
+    }
+
+    public func updateAccountNote(id: UUID, note: String) {
+        guard let index = accounts.firstIndex(where: { $0.id == id }) else { return }
+        let trimmed = note.trimmingCharacters(in: .whitespacesAndNewlines)
+        accounts[index].note = trimmed.isEmpty ? nil : trimmed
         saveAccounts()
     }
 

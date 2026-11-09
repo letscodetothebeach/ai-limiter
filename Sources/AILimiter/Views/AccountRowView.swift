@@ -74,6 +74,10 @@ public struct AccountRowView: View {
     @State private var isShowingDeleteConfirmation: Bool = false
     @State private var isShowingProxyPopover: Bool = false
     @State private var isShowingStatusPopover: Bool = false
+    @State private var isShowingNotePopover: Bool = false
+
+    // Local note state for popover editing
+    @State private var localNoteText: String = ""
 
     // Local proxy state for popover editing
     @State private var localProxyEnabled: Bool = false
@@ -169,22 +173,37 @@ public struct AccountRowView: View {
             Spacer()
                 .frame(width: 10)
 
-            // Account Name, Badges & Info (Width 250)
+            // Account Name, Badges & Info (Width 320)
             VStack(alignment: .leading, spacing: 3) {
                 if isEditingName {
-                    HStack(spacing: 4) {
-                        TextField("Name", text: $editedName)
-                            .textFieldStyle(.plain)
-                            .font(.system(size: 13, weight: .semibold))
+                    HStack(spacing: 5) {
+                        TextField("Account Name", text: $editedName)
+                            .textFieldStyle(.roundedBorder)
+                            .font(.system(size: 12))
+                            .frame(maxWidth: 180)
                             .onSubmit {
                                 saveName()
                             }
-                        Button("✓") {
+
+                        Button {
                             saveName()
+                        } label: {
+                            Image(systemName: "checkmark")
+                                .font(.system(size: 10, weight: .bold))
+                                .foregroundColor(.green)
                         }
                         .buttonStyle(.plain)
-                        .font(.system(size: 12, weight: .bold))
-                        .foregroundColor(.green)
+                        .help("Save Name")
+
+                        Button {
+                            isEditingName = false
+                        } label: {
+                            Image(systemName: "xmark")
+                                .font(.system(size: 10, weight: .bold))
+                                .foregroundColor(.secondary)
+                        }
+                        .buttonStyle(.plain)
+                        .help("Cancel")
                     }
                 } else {
                     HStack(spacing: 6) {
@@ -198,6 +217,22 @@ public struct AccountRowView: View {
 
                         // Package Badge (Max, Pro, Ultra, Team)
                         AccountPlanBadge(plan: account.displayPlan)
+
+                        // Proxy Active Indicator Badge
+                        if account.proxy.isEnabled {
+                            HStack(spacing: 3) {
+                                Image(systemName: "shield.fill")
+                                    .font(.system(size: 8))
+                                Text(shortProxyUrl(account.proxy.url))
+                                    .font(.system(size: 9, weight: .bold, design: .monospaced))
+                            }
+                            .foregroundColor(.blue)
+                            .padding(.horizontal, 5)
+                            .padding(.vertical, 1.5)
+                            .background(Color.blue.opacity(0.12))
+                            .cornerRadius(4)
+                            .help("Proxy Active: \(account.proxy.url)")
+                        }
 
                         if account.isMock {
                             Text("MOCK")
@@ -251,11 +286,59 @@ public struct AccountRowView: View {
                     .help("Click to view error details & re-authenticate")
                 }
             }
-            .frame(width: 280, alignment: .leading)
+            .frame(width: 320, alignment: .leading)
 
             Spacer()
 
-            // 5-Hour Session Quota Column (Width 110)
+            // Project / Note Column (Width 190)
+            Button {
+                localNoteText = account.note ?? ""
+                isShowingNotePopover = true
+            } label: {
+                if let note = account.note, !note.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    HStack(spacing: 5) {
+                        Image(systemName: "folder.fill")
+                            .font(.system(size: 10))
+                            .foregroundColor(Color(red: 0.85, green: 0.47, blue: 0.34))
+
+                        Text(note)
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundColor(.primary)
+                            .lineLimit(1)
+                            .truncationMode(.tail)
+                    }
+                    .padding(.horizontal, 8)
+                    .frame(height: 26)
+                    .background(Color(red: 0.85, green: 0.47, blue: 0.34).opacity(0.12))
+                    .cornerRadius(6)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 6)
+                            .stroke(Color(red: 0.85, green: 0.47, blue: 0.34).opacity(0.22), lineWidth: 1)
+                    )
+                } else {
+                    HStack(spacing: 4) {
+                        Image(systemName: "plus")
+                            .font(.system(size: 9))
+                        Text("Add note")
+                            .font(.system(size: 11))
+                    }
+                    .foregroundColor(.secondary.opacity(0.55))
+                    .padding(.horizontal, 8)
+                    .frame(height: 26)
+                    .background(Color.primary.opacity(0.03))
+                    .cornerRadius(6)
+                }
+            }
+            .buttonStyle(.plain)
+            .popover(isPresented: $isShowingNotePopover, arrowEdge: .bottom) {
+                notePopover
+            }
+            .help(account.note ?? "Click to add project or note")
+            .frame(width: 190, alignment: .leading)
+
+            Spacer()
+
+            // 5-Hour Session Quota Column (Width 115)
             VStack(alignment: .leading, spacing: 2) {
                 if account.isNeedsAuth && account.usage == nil {
                     Button {
@@ -279,65 +362,55 @@ public struct AccountRowView: View {
                     CompactQuotaMeter(title: "5-Hour Session", quota: account.usage?.session5h)
                 }
             }
-            .frame(width: 110, alignment: .leading)
+            .frame(width: 115, alignment: .leading)
 
             Spacer()
 
-            // 7-Day Weekly Quota Column (Width 110)
+            // 7-Day Weekly Quota Column (Width 115)
             VStack(alignment: .leading, spacing: 2) {
                 CompactQuotaMeter(title: "7-Day Weekly", quota: account.usage?.weekly7d)
             }
-            .frame(width: 110, alignment: .leading)
+            .frame(width: 115, alignment: .leading)
 
             Spacer()
 
-            // Proxy Column (Width 110)
-            Button {
-                localProxyEnabled = account.proxy.isEnabled
-                localProxyUrl = account.proxy.url
-                proxyTestMessage = nil
-                proxyTestSuccess = nil
-                isShowingProxyPopover = true
-            } label: {
-                HStack(spacing: 6) {
+            // Actions & Controls Column: Proxy, Reauth, Refresh & Delete (Width 95)
+            HStack(spacing: 5) {
+                // Quick Proxy Button (Popover)
+                Button {
+                    localProxyEnabled = account.proxy.isEnabled
+                    localProxyUrl = account.proxy.url
+                    proxyTestMessage = nil
+                    proxyTestSuccess = nil
+                    isShowingProxyPopover = true
+                } label: {
                     Image(systemName: account.proxy.isEnabled ? "shield.fill" : "network")
                         .font(.system(size: 12))
-
-                    if account.proxy.isEnabled {
-                        Text(shortProxyUrl(account.proxy.url))
-                            .font(.system(size: 12, weight: .medium, design: .monospaced))
-                            .lineLimit(1)
-                    } else {
-                        Text("Proxy: Off")
-                            .font(.system(size: 12, weight: .medium))
-                    }
+                        .foregroundColor(account.proxy.isEnabled ? .blue : .secondary.opacity(0.75))
                 }
-                .foregroundColor(account.proxy.isEnabled ? .blue : .secondary)
-                .padding(.horizontal, 8)
-                .frame(height: 28)
-                .background(account.proxy.isEnabled ? Color.blue.opacity(0.12) : Color.primary.opacity(0.05))
+                .buttonStyle(.plain)
+                .frame(width: 26, height: 26)
+                .background(account.proxy.isEnabled ? Color.blue.opacity(0.15) : Color.primary.opacity(0.04))
                 .cornerRadius(6)
-            }
-            .buttonStyle(.plain)
-            .popover(isPresented: $isShowingProxyPopover, arrowEdge: .bottom) {
-                proxyConfigPopover
-            }
-            .frame(width: 110, alignment: .leading)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 6)
+                        .stroke(account.proxy.isEnabled ? Color.blue.opacity(0.35) : Color.primary.opacity(0.06), lineWidth: 1)
+                )
+                .help(account.proxy.isEnabled ? "Proxy: \(account.proxy.url) (Click to configure)" : "Proxy: Off (Click to configure)")
+                .popover(isPresented: $isShowingProxyPopover, arrowEdge: .bottom) {
+                    proxyConfigPopover
+                }
 
-            Spacer()
-
-            // Actions Column: Reauth, Refresh & Delete (Width 100, 30x30 buttons)
-            HStack(spacing: 6) {
                 if account.isNeedsAuth {
                     Button {
                         store.accountToReauth = account
                     } label: {
                         Image(systemName: "key.fill")
-                            .font(.system(size: 12, weight: .bold))
+                            .font(.system(size: 11, weight: .bold))
                             .foregroundColor(.white)
                     }
                     .buttonStyle(.plain)
-                    .frame(width: 30, height: 30)
+                    .frame(width: 26, height: 26)
                     .background(Color(red: 0.85, green: 0.47, blue: 0.34))
                     .cornerRadius(6)
                     .help("Re-authenticate account with Claude.ai")
@@ -349,31 +422,39 @@ public struct AccountRowView: View {
                     }
                 } label: {
                     Image(systemName: "arrow.clockwise")
-                        .font(.system(size: 13, weight: .semibold))
+                        .font(.system(size: 12, weight: .semibold))
                         .rotationEffect(.degrees(account.status == .refreshing ? 360 : 0))
                         .animation(account.status == .refreshing ? .linear(duration: 1).repeatForever(autoreverses: false) : .default, value: account.status)
                 }
                 .buttonStyle(.plain)
                 .foregroundColor(.secondary)
-                .frame(width: 30, height: 30)
-                .background(Color.primary.opacity(0.06))
+                .frame(width: 26, height: 26)
+                .background(Color.primary.opacity(0.04))
                 .cornerRadius(6)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 6)
+                        .stroke(Color.primary.opacity(0.06), lineWidth: 1)
+                )
                 .help("Refresh account limits")
 
                 Button {
                     isShowingDeleteConfirmation = true
                 } label: {
                     Image(systemName: "trash")
-                        .font(.system(size: 13, weight: .regular))
-                        .foregroundColor(.red.opacity(0.85))
+                        .font(.system(size: 11, weight: .regular))
+                        .foregroundColor(.red.opacity(0.8))
                 }
                 .buttonStyle(.plain)
-                .frame(width: 30, height: 30)
-                .background(Color.red.opacity(0.08))
+                .frame(width: 26, height: 26)
+                .background(Color.red.opacity(0.06))
                 .cornerRadius(6)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 6)
+                        .stroke(Color.red.opacity(0.12), lineWidth: 1)
+                )
                 .help("Remove account")
             }
-            .frame(width: 100, alignment: .trailing)
+            .frame(width: 95, alignment: .trailing)
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
@@ -394,6 +475,22 @@ public struct AccountRowView: View {
                 }
                 Divider()
             }
+
+            Button {
+                localNoteText = account.note ?? ""
+                isShowingNotePopover = true
+            } label: {
+                Label(account.note == nil ? "Add Note / Project..." : "Edit Note / Project...", systemImage: "folder.badge.gearshape")
+            }
+
+            Button {
+                editedName = account.cleanDisplayName
+                isEditingName = true
+            } label: {
+                Label("Rename Account...", systemImage: "pencil")
+            }
+
+            Divider()
 
             Button {
                 Task {
@@ -421,6 +518,67 @@ public struct AccountRowView: View {
             }
             Button("Cancel", role: .cancel) {}
         }
+    }
+
+    // MARK: - Project Note Popover
+
+    private var notePopover: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 6) {
+                Image(systemName: "folder.fill")
+                    .foregroundColor(Color(red: 0.85, green: 0.47, blue: 0.34))
+                    .font(.system(size: 13))
+                Text("Project / Note")
+                    .font(.system(size: 12, weight: .bold))
+                Spacer()
+            }
+
+            Text("Assign this account to a project or add a description (e.g. 'Project Phoenix', 'Client Mobile App').")
+                .font(.system(size: 11))
+                .foregroundColor(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            TextField("Project name or note", text: $localNoteText)
+                .textFieldStyle(.roundedBorder)
+                .font(.system(size: 12))
+                .frame(width: 250)
+                .onSubmit {
+                    saveNote()
+                }
+
+            HStack {
+                if let note = account.note, !note.isEmpty {
+                    Button(role: .destructive) {
+                        store.updateAccountNote(id: account.id, note: "")
+                        isShowingNotePopover = false
+                    } label: {
+                        Text("Clear")
+                    }
+                    .controlSize(.small)
+                }
+
+                Spacer()
+
+                Button("Cancel") {
+                    isShowingNotePopover = false
+                }
+                .controlSize(.small)
+
+                Button("Save") {
+                    saveNote()
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(Color(red: 0.85, green: 0.47, blue: 0.34))
+                .controlSize(.small)
+            }
+        }
+        .padding(14)
+        .frame(width: 280)
+    }
+
+    private func saveNote() {
+        store.updateAccountNote(id: account.id, note: localNoteText)
+        isShowingNotePopover = false
     }
 
     // MARK: - Status Details Popover

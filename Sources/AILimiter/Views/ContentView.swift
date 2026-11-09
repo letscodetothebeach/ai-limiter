@@ -105,7 +105,8 @@ public struct ContentView: View {
         return store.accounts.filter {
             $0.name.lowercased().contains(q) ||
             ($0.email?.lowercased().contains(q) ?? false) ||
-            ($0.organizationName?.lowercased().contains(q) ?? false)
+            ($0.organizationName?.lowercased().contains(q) ?? false) ||
+            ($0.note?.lowercased().contains(q) ?? false)
         }
     }
 
@@ -161,7 +162,7 @@ public struct ContentView: View {
             // Bottom Status Bar
             bottomStatusBar
         }
-        .frame(minWidth: 940, minHeight: 520)
+        .frame(minWidth: 980, minHeight: 520)
         .background(WindowFocusHelper {
             isSearchFocused = false
         })
@@ -363,7 +364,7 @@ public struct ContentView: View {
 
             Circle()
                 .fill(Color.clear)
-                .frame(width: 10, height: 10)
+                .frame(width: 16, height: 16)
 
             Spacer()
                 .frame(width: 10)
@@ -371,35 +372,35 @@ public struct ContentView: View {
             Text("ACCOUNT")
                 .font(.system(size: 11, weight: .bold))
                 .foregroundColor(.secondary)
-                .frame(width: 280, alignment: .leading)
+                .frame(width: 320, alignment: .leading)
+
+            Spacer()
+
+            Text("PROJECT / NOTE")
+                .font(.system(size: 11, weight: .bold))
+                .foregroundColor(.secondary)
+                .frame(width: 190, alignment: .leading)
 
             Spacer()
 
             Text("5-HOUR LIMIT")
                 .font(.system(size: 11, weight: .bold))
                 .foregroundColor(.secondary)
-                .frame(width: 110, alignment: .leading)
+                .frame(width: 115, alignment: .leading)
 
             Spacer()
 
             Text("7-DAY LIMIT")
                 .font(.system(size: 11, weight: .bold))
                 .foregroundColor(.secondary)
-                .frame(width: 110, alignment: .leading)
-
-            Spacer()
-
-            Text("PROXY")
-                .font(.system(size: 11, weight: .bold))
-                .foregroundColor(.secondary)
-                .frame(width: 110, alignment: .leading)
+                .frame(width: 115, alignment: .leading)
 
             Spacer()
 
             Text("ACTIONS")
                 .font(.system(size: 11, weight: .bold))
                 .foregroundColor(.secondary)
-                .frame(width: 100, alignment: .trailing)
+                .frame(width: 95, alignment: .trailing)
         }
         .padding(.horizontal, 28)
         .padding(.vertical, 7)

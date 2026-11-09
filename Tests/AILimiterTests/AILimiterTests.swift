@@ -151,6 +151,16 @@ struct AILimiterTests {
         let renamedAccount = store.accounts.first(where: { $0.id == testAccount.id })
         #expect(renamedAccount?.name == "Renamed Unit Test")
 
+        // Update Project Note
+        store.updateAccountNote(id: testAccount.id, note: "Project Mobile iOS")
+        let notedAccount = store.accounts.first(where: { $0.id == testAccount.id })
+        #expect(notedAccount?.note == "Project Mobile iOS")
+
+        // Clear Note with empty whitespace
+        store.updateAccountNote(id: testAccount.id, note: "   ")
+        let clearedNoteAccount = store.accounts.first(where: { $0.id == testAccount.id })
+        #expect(clearedNoteAccount?.note == nil)
+
         // Refresh mock account
         await store.refreshAccount(id: testAccount.id)
         let refreshed = store.accounts.first(where: { $0.id == testAccount.id })
@@ -344,5 +354,55 @@ struct AILimiterTests {
         #expect(!store.accounts[0].isNeedsAuth)
         #expect(store.accounts[0].plan == "Max (20x)")
         #expect(store.accounts[0].accountType == "Business")
+    }
+
+    @Test @MainActor func testAccountNoteAndSearchFiltering() throws {
+        // Test Backward Compatibility: JSON without note decodes with note = nil
+        let legacyJson = """
+        {
+            "id": "\(UUID().uuidString)",
+            "name": "Legacy Account",
+            "accessToken": "legacy_tok",
+            "proxy": { "isEnabled": false, "url": "http://127.0.0.1:7890" },
+            "isMock": true,
+            "status": "active"
+        }
+        """
+        let decoded = try JSONDecoder().decode(Account.self, from: legacyJson.data(using: .utf8)!)
+        #expect(decoded.name == "Legacy Account")
+        #expect(decoded.note == nil)
+
+        // Test Encoding & Decoding with note
+        let newAcct = Account(name: "Noted Account", note: "Project Phoenix")
+        #expect(newAcct.note == "Project Phoenix")
+
+        let encodedData = try JSONEncoder().encode(newAcct)
+        let roundTripped = try JSONDecoder().decode(Account.self, from: encodedData)
+        #expect(roundTripped.note == "Project Phoenix")
+
+        // Test Filtering by Project Note
+        let store = AccountStore()
+        let acct1 = Account(name: "Account A", note: "Phoenix Backend")
+        let acct2 = Account(name: "Account B", note: "Mobile Flutter App")
+        let acct3 = Account(name: "Account C")
+
+        store.accounts = [acct1, acct2, acct3]
+
+        func search(_ query: String) -> [Account] {
+            let q = query.lowercased()
+            return store.accounts.filter {
+                $0.name.lowercased().contains(q) ||
+                ($0.email?.lowercased().contains(q) ?? false) ||
+                ($0.organizationName?.lowercased().contains(q) ?? false) ||
+                ($0.note?.lowercased().contains(q) ?? false)
+            }
+        }
+
+        #expect(search("phoenix").count == 1)
+        #expect(search("phoenix").first?.name == "Account A")
+        #expect(search("flutter").count == 1)
+        #expect(search("flutter").first?.name == "Account B")
+        #expect(search("Account").count == 3)
+        #expect(search("nonexistent").isEmpty)
     }
 }

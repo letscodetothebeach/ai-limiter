@@ -176,6 +176,9 @@ public struct Account: Identifiable, Codable, Equatable, Sendable {
     public var accountType: String?        // e.g. "Personal", "Business", "Team"
     public var rateLimitTier: String?      // e.g. "default_claude_max_20x"
 
+    // Project Note & Description
+    public var note: String?               // e.g. "Project Phoenix", "Client iOS App"
+
     // Tokens
     public var accessToken: String
     public var refreshToken: String?
@@ -199,6 +202,7 @@ public struct Account: Identifiable, Codable, Equatable, Sendable {
         plan: String? = nil,
         accountType: String? = nil,
         rateLimitTier: String? = nil,
+        note: String? = nil,
         accessToken: String = "",
         refreshToken: String? = nil,
         tokenExpiresAt: Date? = nil,
@@ -216,6 +220,7 @@ public struct Account: Identifiable, Codable, Equatable, Sendable {
         self.plan = plan
         self.accountType = accountType
         self.rateLimitTier = rateLimitTier
+        self.note = note
         self.accessToken = accessToken
         self.refreshToken = refreshToken
         self.tokenExpiresAt = tokenExpiresAt
